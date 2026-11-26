@@ -350,7 +350,11 @@ function httpError(status, message) {
 }
 
 async function renderError(req, error) {
-  if (req.headers.get("accept")?.includes("application/json")) {
+  const dest = req.headers.get("sec-fetch-dest");
+  const wantsHTML =
+    (!dest || /^(?:document|iframe|frame|empty)$/i.test(dest)) &&
+    /\btext\/html\b/i.test(req.headers.get("accept") || "");
+  if (!wantsHTML) {
     return new Response(
       JSON.stringify(
         {
@@ -368,7 +372,7 @@ async function renderError(req, error) {
       {
         status: error.status || 500,
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "application/json; charset=utf-8",
           "Cache-Control": "no-store, max-age=0, must-revalidate",
           Pragma: "no-cache",
           Expires: "0",

@@ -324,4 +324,36 @@ describe("Vite dev worker reloads", () => {
     expect(await res.json()).toMatchObject({ message: 'Unknown vite environment "unknown"' });
     expect(warnSpy).not.toHaveBeenCalled();
   });
+
+  test("returns JSON errors for non-HTML requests and HTML only for HTML requests", async () => {
+    const worker = await createWorker();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    importEntry.mockRejectedValueOnce(new Error("boom"));
+    worker.ipc.onMessage({ type: "full-reload" });
+
+    for (const headers of [
+      { accept: "image/*" },
+      { accept: "text/css,*/*;q=0.1" },
+      { accept: "font/woff2" },
+      { accept: "*/*" },
+      {},
+      { accept: "text/html,*/*", "sec-fetch-dest": "image" },
+      { accept: "text/html,*/*", "sec-fetch-dest": "script" },
+    ] as Record<string, string>[]) {
+      const res = await worker.fetch(new Request("http://localhost/asset.png", { headers }));
+      expect(res.status).toBe(500);
+      expect(res.headers.get("content-type")).toBe("application/json; charset=utf-8");
+      expect(await res.json()).toMatchObject({ status: 500, message: "boom" });
+    }
+
+    const htmlRes = await worker.fetch(
+      new Request("http://localhost/", {
+        headers: { accept: "text/html", "sec-fetch-dest": "document" },
+      })
+    );
+    expect(htmlRes.status).toBe(500);
+    expect(htmlRes.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(await htmlRes.text()).toContain("<!DOCTYPE html>");
+    expect(errorSpy).toHaveBeenCalledOnce();
+  });
 });

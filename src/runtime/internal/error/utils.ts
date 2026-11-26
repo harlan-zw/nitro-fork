@@ -28,6 +28,21 @@ export function createErrorHeaders(
   return headers;
 }
 
+const DOCUMENT_FETCH_DEST_RE = /^(?:document|iframe|frame|empty)$/i;
+
+/**
+ * Check whether the request expects an HTML error page rather than a JSON error response.
+ * Subresource/asset `Sec-Fetch-Dest` values (`image`, `style`, `script`, `font`, ...) always
+ * opt out of HTML even if `Accept` includes `text/html`.
+ */
+export function acceptsHTML(headers: Headers): boolean {
+  const dest = headers.get("sec-fetch-dest");
+  if (dest && !DOCUMENT_FETCH_DEST_RE.test(dest)) {
+    return false;
+  }
+  return /\btext\/html\b/i.test(headers.get("accept") || "");
+}
+
 export type InternalHandlerResponse = {
   status?: number;
   statusText?: string | undefined;
